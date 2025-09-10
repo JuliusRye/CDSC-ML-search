@@ -23,16 +23,16 @@ def test_surface_code():
 
 def test_random_deformation():
     # Arrange
-    qec = SurfaceCode(L=5)
+    qec = SurfaceCode(L=3)
     key = random.key(0)
-    allowed = jnp.array([0, 1, 2])
+    probs = jnp.ones(shape=(qec.num_data_qubits, 6)) * jnp.array([0.0, 0.8, 0.0, 0.2, 0.0, 0.0])[None, :]
     # Act
-    deformation_1, new_key = qec.random_deformation(key, allowed)
-    deformation_2, new_key = qec.random_deformation(key, allowed)
+    deformation_1, new_key = qec.random_deformation(key, probs)
+    deformation_2, new_key = qec.random_deformation(key, probs)
     # Assert
     assert deformation_1.shape[0] == qec.num_data_qubits
     assert jnp.all(deformation_1 == deformation_2) # check determinism
-    assert jnp.all(jnp.isin(deformation_1, allowed))
+    assert jnp.all(jnp.isin(deformation_1, jnp.array([1,3])))
     assert new_key != key
 
 def test_deformation_parity_info():
@@ -85,4 +85,4 @@ def test_deformation_image():
 
 if __name__ == "__main__":
     test_random_deformation()
-    test_deformation_parity_info()
+    # test_deformation_parity_info()

@@ -87,30 +87,31 @@ class QEC:
     def random_deformation(
         self,
         key,
-        allowed_deformations: jnp.ndarray
+        probs: jnp.ndarray,
     ):
         """
         Creates a random deformation.
 
-        allowed_deformations: Array of the deformation idx's that is allowed to be used
+        probs: Array of probabilities of shape (n, 6) containing prob for each deformation on each data qubit.
 
         returns: tuple of (deformation, key)
         """
-        return self._random_deformation(key, allowed_deformations)
+        assert probs.shape == (self.num_data_qubits, 6)
+        return self._random_deformation(key, probs)
 
     @partial(jit, static_argnames=("self"))
     def _random_deformation(
         self,
         key,
-        allowed_deformations: jnp.ndarray
+        probs: jnp.ndarray = None
     ):
         subkey, key = random.split(key)
-        deformation = allowed_deformations[random.randint(
-            subkey,
-            shape=self.num_data_qubits,
-            minval=0,
-            maxval=allowed_deformations.shape[0]
-        )]
+        # Cumulative probability
+        cp = jnp.cumsum(probs, axis=1)
+        # Random variable for sampling
+        rv = random.uniform(subkey, shape=cp.shape[0])[:, None]
+        # Find the first index where the cumulative probability is greater than the random variable
+        deformation =  (cp > rv).argmax(axis=1)
         return deformation, key
 
     def deformation_parity_info(
