@@ -1,7 +1,7 @@
 from qecsim.models.rotatedplanar import RotatedPlanarCode
 from qecsim.models.generic import SimpleErrorModel
 import jax.numpy as jnp
-from jax import random
+from jax import random, vmap
 
 
 def sample_errors(
@@ -40,6 +40,37 @@ def sample_errors(
     pauli_x_error = jnp.logical_or(error_idxs == 3, error_idxs == 2).astype(int)
     bsr = jnp.append(pauli_x_error, pauli_z_error)
     return bsr
+
+
+def sample_error_batch(
+    key, 
+    batch_size: int, 
+    code: RotatedPlanarCode, 
+    noise_model: SimpleErrorModel, 
+    error_probability: float, 
+    noise_permutations: jnp.ndarray = None
+):
+    """
+    Sample a batch of errors from the given error model for the given code.
+    
+    Args:
+        key: JAX random key.
+        batch_size (int): The number of errors to sample.
+        code (RotatedPlanarCode): The quantum error-correcting code.
+        error_model (SimpleErrorModel): The error model to sample from.
+        error_probability (float): The probability of an error occurring on each qubit.
+        noise_permutation (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit.
+    
+    Returns:
+        jnp.ndarray: The sampled error in binary symplectic form.
+    """
+    keys = random.split(key, num=batch_size)
+    errors = vmap(
+        sample_errors,
+        in_axes=(0, None, None, None, None),
+        out_axes=0
+    )(keys, code, noise_model, error_probability, noise_permutations)
+    return errors
 
 
 def noise_permutations_from_deformation(deformation: jnp.ndarray) -> jnp.ndarray:

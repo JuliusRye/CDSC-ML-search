@@ -342,7 +342,21 @@ class ModifiedRotatedPlanarRMPSDecoder(Decoder):
             }
             logger.warning('NON-POSITIVE-FINITE MAX COSET PROBABILITY: {}'.format(json.dumps(log_data, sort_keys=True)))
         # return most likely recovery operation as bsf
-        return max_recovery.to_bsf()
+        recovery_z, recovery_x = max_recovery.to_bsf().reshape(2, -1) # X and Z parts seams to be returned in the wrong order --- Modified ---
+        return np.append(recovery_x, recovery_z) # -- Modified ---
+
+    # This whole function has been added --- Modified ---
+    def decode_batch(self, code, syndromes,
+               error_model=DepolarizingErrorModel(),
+               error_probability=0.1, 
+               error_permutation=None,
+               **kwargs):
+        decoder = lambda syndrome: self.decode(code, syndrome, error_model, error_probability, error_permutation, **kwargs)
+        recoveries = np.zeros((syndromes.shape[0], 2*code.n_k_d[0]), dtype=np.int32)
+        for i, syndrome in enumerate(syndromes):
+            recovery = decoder(syndrome)
+            recoveries[i] = recovery
+        return recoveries
 
     @property
     def label(self):

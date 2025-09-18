@@ -27,7 +27,7 @@ def recursive_mwpm(
         verbose (bool): Whether to print progress information.
 
     Returns:
-        jnp.ndarray: The proposed recovery in binary symplectic form.
+        jnp.ndarray (shape (2*n_dat,)): The proposed recovery in binary symplectic form.
     """
     # Set default permutation if none provided
     if noise_permutations is None:
@@ -95,3 +95,34 @@ def recursive_mwpm(
 
     recovery = jnp.append(recovery_x, recovery_z)
     return recovery
+
+def recursive_mwpm_batch(
+    code: RotatedPlanarCode, 
+    syndromes: jnp.ndarray, 
+    noise_model: SimpleErrorModel,
+    error_probability: float,
+    noise_permutations: jnp.ndarray = None,
+    iteration_limit=10,
+) -> jnp.ndarray:
+    """
+    NOTE: This function is not yet optimized for performance and currently uses a simple for loop to apply the decoder to each syndrome in the batch.
+
+    Apply the recursive MWPM decoder to a batch of syndromes in parallel.
+
+    Args:
+        syndromes (jnp.ndarray of shape (batch_size, n_stabilizers)): The syndromes to decode.
+        code (RotatedPlanarCode): The quantum error-correcting code.
+        noise_model (SimpleErrorModel): The error model to sample from.
+        error_probability (float): The probability of an error occurring on a data qubit.
+        noise_permutations (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit (used to implement the effect of a Clifford deformations on the code without altering the stabilizers).
+        iteration_limit (int): The maximum number of iterations to perform.
+
+    Returns:
+        jnp.ndarray (shape (batch_size, 2*n_dat)): The proposed recoveries in binary symplectic form.
+    """
+    decoder = lambda syndrome: recursive_mwpm(code, syndrome, noise_model, error_probability, noise_permutations, iteration_limit)
+    recoveries = jnp.zeros((syndromes.shape[0], 2*code.n_k_d[0]), dtype=jnp.int32)
+    for i, syndrome in enumerate(syndromes):
+        recovery = decoder(syndrome)
+        recoveries = recoveries.at[i].set(recovery)
+    return recoveries
