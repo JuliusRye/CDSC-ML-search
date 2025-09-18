@@ -9,7 +9,7 @@ def sample_errors(
     code: RotatedPlanarCode,
     error_model: SimpleErrorModel,
     error_probability: float,
-    noise_permutations: jnp.ndarray = None
+    errorpermutations: jnp.ndarray = None
 ) -> jnp.ndarray:
     """
     Sample errors from the given error model for the given code.
@@ -19,20 +19,20 @@ def sample_errors(
         code (RotatedPlanarCode): The quantum error-correcting code.
         error_model (SimpleErrorModel): The error model to sample from.
         error_probability (float): The probability of an error occurring on each qubit.
-        noise_permutation (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit.
+        errorpermutation (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit.
     
     Returns:
         jnp.ndarray: The sampled error in binary symplectic form.
     """
     # Set default permutation if none provided
-    if noise_permutations is None:
-        noise_permutations = jnp.tile(jnp.array([0,1,2,3]), reps=(*code.size,1))
+    if errorpermutations is None:
+        errorpermutations = jnp.tile(jnp.array([0,1,2,3]), reps=(*code.size,1))
     else:
-        assert code.size == noise_permutations.shape[:-1], "Permutation shape does not match code size"
+        assert code.size == errorpermutations.shape[:-1], "Permutation shape does not match code size"
     # Sample errors according to the error model
     rv = random.uniform(key, shape=code.size)[:,:,None]
     probabilities = jnp.array(error_model.probability_distribution(error_probability))
-    probabilities = probabilities[noise_permutations] # Permute probabilities if needed
+    probabilities = probabilities[errorpermutations] # Permute probabilities if needed
     cumulative_probabilities = jnp.cumsum(probabilities, axis=-1)
     error_idxs = (cumulative_probabilities > rv).argmax(axis=-1).flatten() # 0: I, 1: X, 2: Y, 3: Z
     # Convert to binary symplectic form
@@ -46,9 +46,9 @@ def sample_error_batch(
     key, 
     batch_size: int, 
     code: RotatedPlanarCode, 
-    noise_model: SimpleErrorModel, 
+    errormodel: SimpleErrorModel, 
     error_probability: float, 
-    noise_permutations: jnp.ndarray = None
+    errorpermutations: jnp.ndarray = None
 ):
     """
     Sample a batch of errors from the given error model for the given code.
@@ -59,7 +59,7 @@ def sample_error_batch(
         code (RotatedPlanarCode): The quantum error-correcting code.
         error_model (SimpleErrorModel): The error model to sample from.
         error_probability (float): The probability of an error occurring on each qubit.
-        noise_permutation (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit.
+        errorpermutation (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit.
     
     Returns:
         jnp.ndarray: The sampled error in binary symplectic form.
@@ -69,11 +69,11 @@ def sample_error_batch(
         sample_errors,
         in_axes=(0, None, None, None, None),
         out_axes=0
-    )(keys, code, noise_model, error_probability, noise_permutations)
+    )(keys, code, errormodel, error_probability, errorpermutations)
     return errors
 
 
-def noise_permutations_from_deformation(deformation: jnp.ndarray) -> jnp.ndarray:
+def errorpermutations_from_deformation(deformation: jnp.ndarray) -> jnp.ndarray:
     r"""
     Translates a deformation on the QECC into a corresponding permutation of the noise model (acting on an un-deformed version of the QECC).
 

@@ -16,8 +16,8 @@ def test_modified_bsv():
     # Arrange
     key = random.key(0)
     code = RotatedPlanarCode(3,3)
-    noise_model = BiasedDepolarizingErrorModel(bias=10.0, axis='Z')
-    noise_permutations = jnp.array([
+    errormodel = BiasedDepolarizingErrorModel(bias=10.0, axis='Z')
+    errorpermutations = jnp.array([
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
@@ -25,10 +25,10 @@ def test_modified_bsv():
     error_probability = 0.1
     chi = 6
     # Act
-    error = sample_errors(key, code, noise_model, error_probability, noise_permutations)
+    error = sample_errors(key, code, errormodel, error_probability, errorpermutations)
     syndrome = code.stabilizers @ error % 2
     recovery = ModifiedRotatedPlanarRMPSDecoder(chi).decode(
-        code, syndrome, noise_model, error_probability, noise_permutations
+        code, syndrome, errormodel, error_probability, errorpermutations
     )
     recovery_syndrome = code.stabilizers @ recovery % 2
     # Assert
@@ -39,8 +39,8 @@ def test_modified_bsv_batch():
     # Arrange
     key = random.key(0)
     code = RotatedPlanarCode(3,3)
-    noise_model = BiasedDepolarizingErrorModel(bias=10.0, axis='Z')
-    noise_permutations = jnp.array([
+    errormodel = BiasedDepolarizingErrorModel(bias=10.0, axis='Z')
+    errorpermutations = jnp.array([
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
@@ -49,10 +49,10 @@ def test_modified_bsv_batch():
     batch_size = 5
     chi = 6
     # Act
-    errors = sample_error_batch(key, batch_size, code, noise_model, error_probability, noise_permutations)
+    errors = sample_error_batch(key, batch_size, code, errormodel, error_probability, errorpermutations)
     syndromes = jnp.array([code.stabilizers @ error % 2 for error in errors])
     recoveries = ModifiedRotatedPlanarRMPSDecoder(chi).decode_batch(
-        code, syndromes, noise_model, error_probability, noise_permutations
+        code, syndromes, errormodel, error_probability, errorpermutations
     )
     recoveries_syndrome = jnp.array([code.stabilizers @ rec % 2 for rec in recoveries])
     # Assert
