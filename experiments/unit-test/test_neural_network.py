@@ -95,20 +95,6 @@ def test_save_and_load_params():
 	input_shape=(2, 4, 4)
 	conv_layers=[(2, 2, 1, 0)]
 	fc_layers=[8, 3]
-	settings = {
-        "TRAINING_BATCHES": 1000,
-        "BATCH_SIZE": 32,
-        "SEED": 3,
-        "INIT_LEARNING_RATE": 1e-3,
-        "LEARNING_RATE": 1e-4,
-        "WARMUP_STEPS": 100,
-        "TRANSITION_STEP": 200,
-        "DECAY_RATE": 0.1,
-        "CODE_DISTANCE": 5,
-        "ERROR_PROBS": 0.01,
-        "CONV_LAYERS": [[2, 2, 1, 0]],
-        "FC_LAYERS": [8, 3],
-    }
 	# Act
 	model = CNNDecoder(
 		input_shape,
@@ -119,15 +105,15 @@ def test_save_and_load_params():
 	# Assert
 	with tempfile.TemporaryDirectory() as tmpdir:
 		file_name = os.path.join(tmpdir, 'params.json')
-		save_params(params, settings, file_name)
+		save_params(file_name, params)
 		assert os.path.exists(file_name)
-		loaded_settings, loaded_params = load_params(file_name)
+		loaded_params = load_params(file_name)
 		assert _params_equal(loaded_params, params)
-		assert _params_equal(loaded_settings, settings) 
 
 if __name__ == "__main__":
-    # test_mlp_forward()
-    # test_cnn_forward()
+    test_mlp_forward()
+    test_cnn_forward()
     test_cnndual_forward()
-    # test_cnndecoder_forward()
-    # test_save_and_load_params()
+    test_cnndecoder_forward()
+    test_save_and_load_params()
+	print("All tests passed!")

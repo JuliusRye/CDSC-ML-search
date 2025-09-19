@@ -5,7 +5,7 @@ sys.path.append(os.path.abspath(
     os.getcwd()+"/experiments")
 )
 
-from src.data_gen import errorpermutations_from_deformation, sample_errors, sample_error_batch
+from src.data_gen import error_permutations_from_deformation, sample_errors, sample_error_batch
 import jax.numpy as jnp
 from jax import random
 from qecsim.models.rotatedplanar import RotatedPlanarCode
@@ -71,7 +71,7 @@ def test_errorpermutations_from_deformation():
         [3,4,5]
     ])
     # Act
-    errorpermutations = errorpermutations_from_deformation(deformation)
+    errorpermutations = error_permutations_from_deformation(deformation)
     # Assert
     expected_permutations = jnp.array([
         [[0,1,2,3],[0,1,2,3],[0,1,2,3]],
