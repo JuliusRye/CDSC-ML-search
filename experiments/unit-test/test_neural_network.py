@@ -116,4 +116,5 @@ if __name__ == "__main__":
     test_cnndual_forward()
     test_cnndecoder_forward()
     test_save_and_load_params()
-	print("All tests passed!")
+    print("All tests passed!")
+	
