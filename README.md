@@ -2,7 +2,6 @@
 
 This repo is an updated and refined version of the [code I wrote during my master thesis](https://github.com/JuliusRye/QEC).
 
-
 # Installation
 
 **NOTE**: This code was designed with Python 3.12.3 
