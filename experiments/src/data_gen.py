@@ -1,6 +1,5 @@
 from functools import partial
 from qecsim.models.rotatedplanar import RotatedPlanarCode
-from qecsim.models.generic import SimpleErrorModel
 import jax.numpy as jnp
 from jax import random, vmap, jit
 
@@ -114,8 +113,7 @@ def sample_error_batch(
         key: JAX random key.
         batch_size (int): The number of errors to sample.
         code (RotatedPlanarCode): The quantum error-correcting code.
-        error_model (SimpleErrorModel): The error model to sample from.
-        error_probability (float): The probability of an error occurring on each qubit.
+        error_probabilities (jnp.ndarray of shape (4,)): The probabilities of [I, X, Y, Z] errors on each qubit.
         errorpermutation (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit.
     
     Returns:
@@ -180,6 +178,39 @@ def sample_deformation_batch(
         jnp.ndarray: An array of shape (batch_size, deformation.shape) representing the sampled deformations.
     """
     return _sample_deformation_batch(key, batch_size, deformation_probabilities)
+
+def data_batch(
+    key,
+    batch_size: int,
+    code: RotatedPlanarCode,
+    error_probabilities: jnp.ndarray,
+    deformation: jnp.ndarray,
+    as_images: bool = False,
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, any]:
+    """
+    Generate a batch of syndromes and logicals for the given code, error model, and deformation.
+
+    Args:
+        key: JAX random key.
+        batch_size (int): The number of samples to generate.
+        code (RotatedPlanarCode): The quantum error-correcting code.
+        error_probabilities (jnp.ndarray of shape (4,)): The probabilities of [I, X, Y, Z] errors on each qubit.
+        deformation (jnp.ndarray of shape (code.size,)): The deformation to apply to the code.
+        as_images (bool): Whether to return syndromes as images or flat vectors.
+
+    Returns:
+        tuple[jnp.ndarray, jnp.ndarray]: A tuple containing:
+            - syndromes (jnp.ndarray): The syndromes of shape (batch_size, syndrome_size) or (batch_size, code.size+1, code.size+1, 1) if as_images is True.
+            - logicals (jnp.ndarray): The logicals of shape (batch_size, 2).
+    """
+    error_permutation = error_permutations_from_deformation(deformation)
+    deformed_errors = sample_error_batch(key, batch_size, code.size, error_probabilities, error_permutation)
+    error_syndromes = vmap(lambda s,e: (s @ e) % 2, in_axes=(0, 0))(code.stabilizers, deformed_errors)
+    error_logicals = vmap(lambda l,e: (l @ e) % 2, in_axes=(0, 0))(code.logicals, deformed_errors)
+    if as_images:
+        syndrome_mapper = syndrome_to_image_mapper(code)
+        error_syndromes = vmap(syndrome_mapper)(error_syndromes)
+    return error_syndromes, error_logicals
 
 # Transformation functions
 def transform_code_stabilizers(

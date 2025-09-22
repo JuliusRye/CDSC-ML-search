@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(
 import tempfile
 import jax.numpy as jnp
 from jax import random
-from src.neural_network import MLP, CNN, CNNDual, CNNDecoder, save_params, load_params
+from src.neural_network import MLP, CNN, mCNNDecoder, CNNDecoder, save_params, load_params
 
 def test_mlp_forward():
 	# Arrange
@@ -50,7 +50,7 @@ def test_cnndual_forward():
 	fc_layers=[25, 5]
 	batch_size = 2
 	# Act
-	model = CNNDual(
+	model = mCNNDecoder(
 		input_shape_1,
 		input_shape_2,
 		conv_layers_input_1,

@@ -1,5 +1,5 @@
 {
-    "<file_name>": "experiments/train_decoder.py",
+    "<file_name>": "experiments/train_mCNN.py",
     "<save_decoder_as>": "gen_d5",
     "<deformation_name>": "Generalized",
     "<code_distance>": "5",

@@ -24,7 +24,7 @@ MacOS/Linux: `source .venv/bin/activate`
 
 Train a **mCNN** on the **CDSCs** by running:
 
-`python experiments/train_decoder.py <save_decoder_as> <deformation_name> <code_distance> <training_config> <training_batches> [random_seed]`
+`python experiments/train_mCNN.py <save_decoder_as> <deformation_name> <code_distance> <training_config> <training_batches> [random_seed]`
 
 | Argument             | Description                                                  |
 | -------------------- | ------------------------------------------------------------ |
@@ -48,12 +48,12 @@ Train a **mCNN** on the **CDSCs** by running:
 
 Create a **mCNN** decoder for the distance-3 C1 **CDSCs** for 1M training steps:
 
-`python experiments/train_decoder.py C1_d3 C1 3 default 1_000_000`
+`python experiments/train_mCNN.py C1_d3 C1 3 default 1_000_000`
 
 Create a **mCNN** decoder for the distance-5 surface code that can decode any **CDSCs** for 100k training steps (in practise more is needed):
 
-`python experiments/train_decoder.py gen_d5 Generalized 5 default 100_000`
+`python experiments/train_mCNN.py gen_d5 Generalized 5 default 100_000`
 
 Create a **mCNN** decoder for the distance-3 surface code that can decode the code with deformations [2,5,1] on the bottom row, [4,2,3] on the middle row, and [2,3,0] on the top row:
 
-`python experiments/train_decoder.py rand_d3 251423230 3 default 100_000`
+`python experiments/train_mCNN.py rand_d3 251423230 3 default 100_000`

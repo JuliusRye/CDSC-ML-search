@@ -380,7 +380,8 @@ class CNNDecoder(MLModel):
         """
         return self._apply_batch(params, x)
 
-class CNNDual(MLModel):
+
+class mCNNDecoder(MLModel):
     def __init__(
         self,
         input_shape_1: tuple[int, int, int],

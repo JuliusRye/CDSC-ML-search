@@ -13,7 +13,7 @@ import json
 from qecsim.models.rotatedplanar import RotatedPlanarCode
 from qecsim.models.generic import BiasedDepolarizingErrorModel
 # Local imports
-from src.neural_network import CNNDual, save_params
+from src.neural_network import mCNNDecoder, save_params
 from src.data_gen import sample_error_batch, sample_deformation_batch, transform_code_stabilizers, syndrome_to_image_mapper, deformation_to_image_mapper, relevancy_tensor
 
 
@@ -66,7 +66,7 @@ CONV_LAYERS_INPUT_1 = [(NUM_FILTERS,2,1,0)]
 CONV_LAYERS_INPUT_2 = [(NUM_FILTERS,1,1,0)]
 CONV_LAYERS_STAGE_2 = [(NUM_FILTERS,2,1,0)]
 FC_LAYERS = [50, 2]
-nn_decoder = CNNDual(
+nn_decoder = mCNNDecoder(
     input_shape_1 = (1, CODE_DISTANCE+1, CODE_DISTANCE+1),
     input_shape_2 = (6, CODE_DISTANCE, CODE_DISTANCE),
     conv_layers_input_1 = CONV_LAYERS_INPUT_1,
@@ -118,7 +118,7 @@ DEFORMATION_TO_IMAGE_MAP = deformation_to_image_mapper(code)
 def train(
     code: RotatedPlanarCode,
     optimizer: optax.GradientTransformation,
-    model: CNNDual,
+    model: mCNNDecoder,
     pretrained_model_params: dict | None = None,
 ):
     @jit
