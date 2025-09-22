@@ -1,0 +1,8 @@
+{
+    "<file_name>": "experiments/train_decoder.py",
+    "<save_decoder_as>": "gen_d5",
+    "<deformation_name>": "Generalized",
+    "<code_distance>": "5",
+    "<training_config>": "default",
+    "<training_batches>": "100_000"
+}

@@ -22,7 +22,7 @@ from src.data_gen import sample_error_batch, sample_deformation_batch, transform
 
 # Command line arguments
 if len(sys.argv) < 6 or len(sys.argv) > 7:
-    raise ValueError("Please provide the following command line arguments: <save_decoder_as_name> <deformation_name> <code_distance> <training_config> <training_batches> <optional: random_seed>")
+    raise ValueError("Please provide the following command line arguments: <save_decoder_as> <deformation_name> <code_distance> <training_config> <training_batches> [random_seed]")
 NAME = sys.argv[1]
 deformation_name = sys.argv[2]
 CODE_DISTANCE = int(sys.argv[3])
@@ -32,7 +32,7 @@ SEED = int(sys.argv[6]) if len(sys.argv) == 7 else 0
 
 settings = {
     "<file_name>": os.path.relpath(sys.argv[0]),
-    "<save_decoder_as_name>": sys.argv[1],
+    "<save_decoder_as>": sys.argv[1],
     "<deformation_name>": sys.argv[2],
     "<code_distance>": sys.argv[3],
     "<training_config>": sys.argv[4],
@@ -46,7 +46,7 @@ save_dir = f"results/{NAME}"
 if not os.path.exists(save_dir):
     os.mkdir(save_dir)
 else:
-    input(f"Warning: Directory {save_dir} already exists. Press Enter to continue, or Ctrl+C to abort.")
+    input(f"Warning: A saved NN under the name \"{NAME}\" already exists. Press Enter to continue and override it, or Ctrl+C to abort.")
 
 # Parameters
 with open(f"experiments/training_configs/{training_config}.json", "r") as f:
@@ -92,8 +92,6 @@ match deformation_name:
         DEFORMATION = "Generalized"
     case "Best":
         DEFORMATION = "Best"
-    case "Specialize to best":
-        DEFORMATION = "Specialize to best"
     case "CSS":
         DEFORMATION = jnp.zeros(CODE_DISTANCE**2, dtype=jnp.int32)
     case "XZZX":
@@ -147,7 +145,8 @@ def train(
             return jnp.mean(idv_loss)
         # Calculate the weights for the BCE
         probs = nn.softmax(model_params["deformation_dist"], axis=0).reshape(6, -1).T[None, :, :]
-        err_idx = (errors[:,0,:] + 2*errors[:,1,:])
+        n = errors.shape[1] // 2
+        err_idx = (errors[:,:n] + 2*errors[:,n:])
         # The sum is over the deformation probabilities on the same data qubit
         # The prod is over the data qubits for the same batch
         weights = jnp.prod(jnp.sum(probs*relevancy_tensor[err_idx, deformations], axis=2), axis=1)
@@ -212,12 +211,12 @@ def train(
             # Sample a deformation for each batch
             probs = nn.softmax(model_params["deformation_dist"], axis=0)
             subkey, deformation_key = random.split(deformation_key)
-            deformations, deformation_key = sample_deformation_batch(subkey, probs)
+            deformations = sample_deformation_batch(subkey, BATCH_SIZE, probs)
         elif DEFORMATION == "Generalized":
             # Sample a deformation for each batch with uniform distribution
             probs = jnp.ones_like(model_params["deformation_dist"]) / 6
             subkey, deformation_key = random.split(deformation_key)
-            deformations, deformation_key = sample_deformation_batch(subkey, probs)
+            deformations = sample_deformation_batch(subkey, BATCH_SIZE, probs)
         # deformation_images shape=(BATCH_SIZE, 6, CODE_DISTANCE, CODE_DISTANCE)
         deformation_images = vmap(DEFORMATION_TO_IMAGE_MAP)(deformations)
 
@@ -289,7 +288,7 @@ def train(
     return vals
 
 # Perform the training
-print("Starting training...", end=' ')
+print("Starting training...")
 start_time = perf_counter()
 (
     model_params,
@@ -303,10 +302,10 @@ start_time = perf_counter()
     model=nn_decoder,
     pretrained_model_params=None,
 )
-
+losses.block_until_ready()  # Wait for training to finish
 end_time = perf_counter()
 training_time = end_time - start_time
-print(f"Done | time: {int(training_time/60/60):5d}h {int(training_time/60%60):02d}m {int(training_time%60):02d}s")
+print(f"Training finished in {int(training_time/60/60):d}h {int(training_time/60%60):02d}m {int(training_time%60):02d}s")
 
 # Save the data
 jnp.save(

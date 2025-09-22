@@ -1,0 +1,8 @@
+{
+    "<file_name>": "experiments/train_decoder.py",
+    "<save_decoder_as>": "rand_d3",
+    "<deformation_name>": "251423230",
+    "<code_distance>": "3",
+    "<training_config>": "default",
+    "<training_batches>": "100_000"
+}
