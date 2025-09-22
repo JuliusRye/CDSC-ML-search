@@ -13,7 +13,8 @@ import json
 from qecsim.models.rotatedplanar import RotatedPlanarCode
 from qecsim.models.generic import BiasedDepolarizingErrorModel
 # Local imports
-from src.neural_network import mCNNDecoder, save_params
+from src.neural_network import mCNNDecoder
+from src.data_management import save_params
 from src.data_gen import sample_error_batch, sample_deformation_batch, transform_code_stabilizers, syndrome_to_image_mapper, deformation_to_image_mapper, relevancy_tensor
 
 
@@ -57,7 +58,7 @@ LEARNING_RATE = config["LEARNING_RATE"]
 WARMUP_STEPS = config["WARMUP_STEPS"]
 TRANSITION_STEP = config["TRANSITION_STEP"]
 DECAY_RATE = config["DECAY_RATE"]
-ERROR_PROBABILITY = config["ERROR_PROBABILITY"]
+error_probability = config["ERROR_PROBABILITY"]
 ERROR_BIAS = config["ERROR_BIAS"]
 
 # Set up NN architecture
@@ -66,14 +67,17 @@ CONV_LAYERS_INPUT_1 = [(NUM_FILTERS,2,1,0)]
 CONV_LAYERS_INPUT_2 = [(NUM_FILTERS,1,1,0)]
 CONV_LAYERS_STAGE_2 = [(NUM_FILTERS,2,1,0)]
 FC_LAYERS = [50, 2]
-nn_decoder = mCNNDecoder(
-    input_shape_1 = (1, CODE_DISTANCE+1, CODE_DISTANCE+1),
-    input_shape_2 = (6, CODE_DISTANCE, CODE_DISTANCE),
-    conv_layers_input_1 = CONV_LAYERS_INPUT_1,
-    conv_layers_input_2 = CONV_LAYERS_INPUT_2,
-    conv_layers_stage_2 = CONV_LAYERS_STAGE_2,
-    fc_layers = FC_LAYERS
-)
+nn_architecture = {
+    "input_shape_1": (1, CODE_DISTANCE+1, CODE_DISTANCE+1),
+    "input_shape_2": (6, CODE_DISTANCE, CODE_DISTANCE),
+    "conv_layers_input_1": CONV_LAYERS_INPUT_1,
+    "conv_layers_input_2": CONV_LAYERS_INPUT_2,
+    "conv_layers_stage_2": CONV_LAYERS_STAGE_2,
+    "fc_layers": FC_LAYERS
+}
+nn_decoder = mCNNDecoder(**nn_architecture)
+with open(f"{save_dir}/nn_architecture.json", "w") as f:
+    json.dump(("mCNNDecoder", nn_architecture), f, indent=4)
 
 # Set up learning rate schedule
 learning_rate = optax.warmup_exponential_decay_schedule(
@@ -86,12 +90,13 @@ learning_rate = optax.warmup_exponential_decay_schedule(
 
 # Setup code, error model, and deformation
 code = RotatedPlanarCode(CODE_DISTANCE, CODE_DISTANCE)
-ERROR_MODEL = BiasedDepolarizingErrorModel(ERROR_BIAS, axis="Z")
+error_model = BiasedDepolarizingErrorModel(ERROR_BIAS, axis="Z")
+ERROR_PROBABILITIES = jnp.array(error_model.probability_distribution(error_probability))
 match deformation_name:
     case "Generalized":
         DEFORMATION = "Generalized"
-    case "Best":
-        DEFORMATION = "Best"
+    case "Guided":
+        DEFORMATION = "Guided"
     case "CSS":
         DEFORMATION = jnp.zeros(CODE_DISTANCE**2, dtype=jnp.int32)
     case "XZZX":
@@ -136,7 +141,7 @@ def train(
         """
         # Calculate the BCE
         idv_loss = optax.sigmoid_binary_cross_entropy(
-            logits=model.apply_batch(model_params, x1, x2),
+            logits=model.apply_batch(model_params, x1.astype(jnp.float32), x2.astype(jnp.float32)),
             labels=y
         ).mean(axis=1)
         # If DEFORMATION is set, we don't use weights
@@ -181,9 +186,8 @@ def train(
         errors = sample_error_batch(
             subkey,
             BATCH_SIZE,
-            code,
-            ERROR_MODEL,
-            ERROR_PROBABILITY,
+            code.size,
+            ERROR_PROBABILITIES
         )
         syndromes = vmap(lambda s,e: (s @ e) % 2, in_axes=(0, 0))(stabilizers, errors)
         logical_errors = vmap(lambda l,e: (l @ e) % 2, in_axes=(0, 0))(logicals, errors)
@@ -207,7 +211,7 @@ def train(
         if isinstance(DEFORMATION, jnp.ndarray):
             # If DEFORMATION is set, we only train on that deformation
             deformations = jnp.tile(DEFORMATION, reps=(BATCH_SIZE, 1))
-        elif DEFORMATION == "Best":
+        elif DEFORMATION == "Guided":
             # Sample a deformation for each batch
             probs = nn.softmax(model_params["deformation_dist"], axis=0)
             subkey, deformation_key = random.split(deformation_key)

@@ -37,7 +37,7 @@ Train a **mCNN** on the **CDSCs** by running:
 
 #### Supported options for <deformation_name>:
 - "Generalized": Creates a decoder that has been trained uniformly on all **CDSCs**.
-- "Best": Starts like the Generalized decoder, but over time it will narrow its focus to the **CDSCs** it believes are the best in terms of logical error rate.
+- "Guided": Starts like the Generalized decoder, but over time it will narrow its focus to the **CDSCs** it believes are the best in terms of logical error rate.
 - "CSS": Train only on the undeformed rotated surface code.
 - "XZZX": Train only on the [XZZX CDSC](https://www.nature.com/articles/s41467-021-22274-1).
 - "XY": Train only on the [XY CDSC](https://journals.aps.org/prx/abstract/10.1103/PhysRevX.9.041031).

@@ -4,5 +4,5 @@
     "<deformation_name>": "C1",
     "<code_distance>": "3",
     "<training_config>": "default",
-    "<training_batches>": "1_000_000"
+    "<training_batches>": "10_000"
 }

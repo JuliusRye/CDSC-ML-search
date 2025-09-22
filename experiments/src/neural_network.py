@@ -5,65 +5,6 @@ from abc import ABC, abstractmethod
 import json
 
 
-def save_params(
-    file_name: str,
-    params: dict | list | tuple | jnp.ndarray | int | float,
-):
-    """
-    Saves the neural network parameter object to a json file (replacing the jnp.ndarrays with lists).
-
-    Args:
-        file_name (str): The name of the JSON file to save the parameters to.
-        params (dict | list | tuple | jnp.ndarray | int | float): The parameters to save.
-    """
-    def jsonify(obj: dict | list | tuple | jnp.ndarray | int | float):
-        if isinstance(obj, dict):
-            return {k: jsonify(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [jsonify(v) for v in obj]
-        if isinstance(obj, tuple):
-            return tuple(jsonify(v) for v in obj)
-        if isinstance(obj, jnp.ndarray):
-            return obj.tolist()
-        if isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, str):
-            return obj
-        raise NotImplementedError(
-            f"Handling of type {type(obj)} has not been implemented")
-    with open(file_name, 'w') as file:
-        json.dump(jsonify(params), file, indent=4)
-
-
-def load_params(
-    file_name: str,
-) -> dict:
-    """
-    Loads the neural network parameter object from a JSON file.
-
-    Args:
-        file_name (str): The name of the JSON file to load the parameters from.
-    
-    Returns:
-        dict: The loaded parameters.
-    """
-    def de_jsonify(
-        obj: dict | list | tuple | jnp.ndarray | int | float,
-    ):
-        if isinstance(obj, dict):
-            return {k: de_jsonify(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            try:
-                return jnp.array(obj)
-            except (TypeError, ValueError):
-                return [de_jsonify(v) for v in obj]
-        if isinstance(obj, int) or isinstance(obj, float):
-            return obj
-        raise NotImplementedError(
-            f"Handling of type {type(obj)} has not been implemented")
-    with open(file_name, 'r') as file:
-        data = json.load(file)
-    return de_jsonify(data)
-
-
 class MLModel(ABC):
 
     @abstractmethod
