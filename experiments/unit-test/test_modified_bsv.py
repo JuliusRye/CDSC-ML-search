@@ -16,19 +16,20 @@ def test_modified_bsv():
     # Arrange
     key = random.key(0)
     code = RotatedPlanarCode(3,3)
-    errormodel = BiasedDepolarizingErrorModel(bias=10.0, axis='Z')
-    errorpermutations = jnp.array([
+    error_model = BiasedDepolarizingErrorModel(bias=10.0, axis='Z')
+    error_probability = 0.1
+    error_probabilities = jnp.array(error_model.probability_distribution(error_probability))
+    error_permutations = jnp.array([
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
     ])
-    error_probability = 0.1
     chi = 6
     # Act
-    error = sample_errors(key, code, errormodel, error_probability, errorpermutations)
+    error = sample_errors(key, code.size, error_probabilities, error_permutations)
     syndrome = code.stabilizers @ error % 2
     recovery = ModifiedRotatedPlanarRMPSDecoder(chi).decode(
-        code, syndrome, errormodel, error_probability, errorpermutations
+        code, syndrome, error_model, error_probability, error_permutations
     )
     recovery_syndrome = code.stabilizers @ recovery % 2
     # Assert
@@ -39,20 +40,21 @@ def test_modified_bsv_batch():
     # Arrange
     key = random.key(0)
     code = RotatedPlanarCode(3,3)
-    errormodel = BiasedDepolarizingErrorModel(bias=10.0, axis='Z')
-    errorpermutations = jnp.array([
+    error_model = BiasedDepolarizingErrorModel(bias=10.0, axis='Z')
+    error_probability = 0.1
+    error_probabilities = jnp.array(error_model.probability_distribution(error_probability))
+    error_permutations = jnp.array([
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
         [[0,1,2,3], [0,1,2,3], [0,1,2,3]],
     ])
-    error_probability = 0.1
     batch_size = 5
     chi = 6
     # Act
-    errors = sample_error_batch(key, batch_size, code, errormodel, error_probability, errorpermutations)
+    errors = sample_error_batch(key, batch_size, code.size, error_probabilities, error_permutations)
     syndromes = jnp.array([code.stabilizers @ error % 2 for error in errors])
     recoveries = ModifiedRotatedPlanarRMPSDecoder(chi).decode_batch(
-        code, syndromes, errormodel, error_probability, errorpermutations
+        code, syndromes, error_model, error_probability, error_permutations
     )
     recoveries_syndrome = jnp.array([code.stabilizers @ rec % 2 for rec in recoveries])
     # Assert

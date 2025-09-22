@@ -1,7 +1,8 @@
+from functools import partial
 from qecsim.models.rotatedplanar import RotatedPlanarCode
 from qecsim.models.generic import SimpleErrorModel
 import jax.numpy as jnp
-from jax import random, vmap
+from jax import random, vmap, jit
 
 # Static variables
 relevancy_tensor = jnp.array([
@@ -36,36 +37,22 @@ relevancy_tensor = jnp.array([
 ])
 
 # Sampling functions
-def sample_errors(
+@partial(jit, static_argnames=("code_shape",))
+def _sample_errors(
     key,
-    code: RotatedPlanarCode,
-    error_model: SimpleErrorModel,
-    error_probability: float,
-    errorpermutations: jnp.ndarray = None
+    code_shape: tuple[int, int],
+    error_probabilities: jnp.ndarray,
+    error_permutations: jnp.ndarray = None
 ) -> jnp.ndarray:
-    """
-    Sample errors from the given error model for the given code.
-
-    Args:
-        key: JAX random key.
-        code (RotatedPlanarCode): The quantum error-correcting code.
-        error_model (SimpleErrorModel): The error model to sample from.
-        error_probability (float): The probability of an error occurring on each qubit.
-        errorpermutation (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit.
-    
-    Returns:
-        jnp.ndarray: The sampled error in binary symplectic form.
-    """
     # Set default permutation if none provided
-    if errorpermutations is None:
-        errorpermutations = jnp.tile(jnp.array([0,1,2,3]), reps=(*code.size,1))
-    else:
-        assert code.size == errorpermutations.shape[:-1], "Permutation shape does not match code size"
+    if error_permutations is None:
+        error_permutations = jnp.tile(jnp.array([0,1,2,3]), reps=(*code_shape,1))
+    # else:
+    #     assert code_shape == error_permutations.shape[:-1], "Permutation shape does not match code size"
     # Sample errors according to the error model
-    rv = random.uniform(key, shape=code.size)[:,:,None]
-    probabilities = jnp.array(error_model.probability_distribution(error_probability))
-    probabilities = probabilities[errorpermutations] # Permute probabilities if needed
-    cumulative_probabilities = jnp.cumsum(probabilities, axis=-1)
+    rv = random.uniform(key, shape=code_shape)[:,:,None]
+    error_probabilities = error_probabilities[error_permutations] # Permute probabilities if needed
+    cumulative_probabilities = jnp.cumsum(error_probabilities, axis=-1)
     error_idxs = (cumulative_probabilities > rv).argmax(axis=-1).flatten() # 0: I, 1: X, 2: Y, 3: Z
     # Convert to binary symplectic form
     pauli_z_error = jnp.logical_or(error_idxs == 1, error_idxs == 2).astype(int)
@@ -73,15 +60,54 @@ def sample_errors(
     bsr = jnp.append(pauli_x_error, pauli_z_error)
     return bsr
 
+def sample_errors(
+    key,
+    code_shape: tuple[int, int],
+    error_probabilities: jnp.ndarray,
+    error_permutations: jnp.ndarray = None
+) -> jnp.ndarray:
+    """
+    #### Jit optimized function!
+
+    Sample errors from the given error model for the given code.
+
+    Args:
+        key: JAX random key.
+        code_shape (tuple[int, int]): The shape of the quantum error-correcting code.
+        error_probabilities (jnp.ndarray of shape (4,)): The probabilities of [I, X, Y, Z] errors on each qubit.
+        error_permutations (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit.
+
+    Returns:
+        jnp.ndarray: The sampled error in binary symplectic form.
+    """
+    return _sample_errors(key, code_shape, error_probabilities, error_permutations)
+
+@partial(jit, static_argnames=("batch_size", "code_shape",))
+def _sample_error_batch(
+    key, 
+    batch_size: int, 
+    code_shape: tuple[int, int],
+    error_probabilities: jnp.ndarray,
+    error_permutations: jnp.ndarray = None
+):
+    keys = random.split(key, num=batch_size)
+    errors = vmap(
+        sample_errors,
+        in_axes=(0, None, None, None),
+        out_axes=0
+    )(keys, code_shape, error_probabilities, error_permutations)
+    return errors
+
 def sample_error_batch(
     key, 
     batch_size: int, 
-    code: RotatedPlanarCode, 
-    errormodel: SimpleErrorModel, 
-    error_probability: float, 
-    errorpermutations: jnp.ndarray = None
+    code_shape: tuple[int, int],
+    error_probabilities: jnp.ndarray,
+    error_permutations: jnp.ndarray = None
 ):
     """
+    #### Jit optimized function!
+
     Sample a batch of errors from the given error model for the given code.
     
     Args:
@@ -95,19 +121,27 @@ def sample_error_batch(
     Returns:
         jnp.ndarray: The sampled error in binary symplectic form.
     """
-    keys = random.split(key, num=batch_size)
-    errors = vmap(
-        sample_errors,
-        in_axes=(0, None, None, None, None),
-        out_axes=0
-    )(keys, code, errormodel, error_probability, errorpermutations)
-    return errors
+    return _sample_error_batch(key, batch_size, code_shape, error_probabilities, error_permutations)
+
+@jit
+def _sample_deformation(
+    key, 
+    deformation_probabilities: jnp.ndarray
+):
+    # Cumulative probability
+    cp = jnp.cumsum(deformation_probabilities.reshape(-1, 6).T, axis=0)
+    # Random variable for sampling
+    rv = random.uniform(key, shape=cp.shape[1])
+    # Find the first index where the cumulative probability is greater than the random variable
+    return (cp > rv).argmax(axis=0)
 
 def sample_deformation(
     key, 
     deformation_probabilities: jnp.ndarray
 ):
     """
+    #### Jit optimized function!
+
     Sample a deformation from the given deformation probabilities.
     
     Args:
@@ -117,12 +151,15 @@ def sample_deformation(
     Returns:
         jnp.ndarray: An array of shape (deformation.shape,) representing the sampled deformation.
     """
-    # Cumulative probability
-    cp = jnp.cumsum(deformation_probabilities.reshape(6, -1), axis=0)
-    # Random variable for sampling
-    rv = random.uniform(key, shape=cp.shape[1])
-    # Find the first index where the cumulative probability is greater than the random variable
-    return (cp > rv).argmax(axis=0)
+    return _sample_deformation(key, deformation_probabilities)
+
+@partial(jit, static_argnames=("batch_size",))
+def _sample_deformation_batch(
+    key, 
+    batch_size: int, 
+    deformation_probabilities: jnp.ndarray
+):
+    return vmap(sample_deformation, in_axes=(0, None))(random.split(key, batch_size), deformation_probabilities)
 
 def sample_deformation_batch(
     key, 
@@ -130,6 +167,8 @@ def sample_deformation_batch(
     deformation_probabilities: jnp.ndarray
 ):
     """
+    #### Jit optimized function!
+
     Sample a batch of deformations from the given deformation probabilities.
     
     Args:
@@ -140,7 +179,7 @@ def sample_deformation_batch(
     Returns:
         jnp.ndarray: An array of shape (batch_size, deformation.shape) representing the sampled deformations.
     """
-    return vmap(sample_deformation, in_axes=(0, None))(random.split(key, batch_size), deformation_probabilities)
+    return _sample_deformation_batch(key, batch_size, deformation_probabilities)
 
 # Transformation functions
 def transform_code_stabilizers(
@@ -165,13 +204,14 @@ def transform_code_stabilizers(
 
     # Map of how each entry (hx_i,j, hz_i,j) in the parity check matrix transforms under each deformation
     transformation_map = jnp.array([
+    #   X(1, 0) Z(0, 1) turn into:
         [[1, 0], [0, 1]],  # I
         [[1, 1], [0, 1]],  # X-Y
         [[1, 0], [1, 1]],  # Y-Z
         [[0, 1], [1, 0]],  # X-Z
-        [[1, 1], [1, 0]],  # X-Z-Y
-        [[0, 1], [1, 1]],  # X-Y-Z
-    ])
+        [[0, 1], [1, 1]],  # X-Z-Y
+        [[1, 1], [1, 0]],  # X-Y-Z
+    ]).transpose(0,2,1)
 
     # Number of data qubits and stabilizers
     n_dat = code.n_k_d[0]
@@ -236,7 +276,7 @@ def syndrome_to_image_mapper(
     shape = tuple(s + 1 for s in code.size)
 
     def fun_syndrome_to_img(syndrome):
-        return jnp.zeros(shape).at[mask].set(syndrome)[:,:,None].transpose(2, 0, 1)
+        return jnp.zeros(shape, dtype=jnp.int32).at[mask].set(syndrome)[:,:,None].transpose(2, 0, 1)
 
     return fun_syndrome_to_img
 
@@ -255,7 +295,7 @@ def deformation_to_image_mapper(
 
     # Done this way for consistency with syndrome_to_image_mapper
     def deformation_to_image(deformation):
-        return jnp.eye(6, dtype=jnp.float32)[
+        return jnp.eye(6, dtype=jnp.int32)[
             deformation.reshape(code.size)
         ].transpose(2, 0, 1)
 

@@ -8,7 +8,7 @@ def recursive_mwpm(
     syndrome: jnp.ndarray, 
     errormodel: SimpleErrorModel,
     error_probability: float,
-    errorpermutations: jnp.ndarray = None,
+    error_permutations: jnp.ndarray = None,
     iteration_limit=10,
     verbose=False,
 ) -> jnp.ndarray:
@@ -22,7 +22,7 @@ def recursive_mwpm(
         syndrome (jnp.ndarray): The syndrome to decode.
         errormodel (SimpleErrorModel): The error model to sample from.
         error_probability (float): The probability of an error occurring on a data qubit.
-        errorpermutations (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit (used to implement the effect of a Clifford deformations on the code without altering the stabilizers).
+        error_permutations (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit (used to implement the effect of a Clifford deformations on the code without altering the stabilizers).
         iteration_limit (int): The maximum number of iterations to perform.
         verbose (bool): Whether to print progress information.
 
@@ -30,10 +30,10 @@ def recursive_mwpm(
         jnp.ndarray (shape (2*n_dat,)): The proposed recovery in binary symplectic form.
     """
     # Set default permutation if none provided
-    if errorpermutations is None:
-        errorpermutations = jnp.tile(jnp.array([0,1,2,3]), reps=(*code.size,1))
+    if error_permutations is None:
+        error_permutations = jnp.tile(jnp.array([0,1,2,3]), reps=(*code.size,1))
     else:
-        assert code.size == errorpermutations.shape[:-1], "Permutation shape does not match code size"
+        assert code.size == error_permutations.shape[:-1], "Permutation shape does not match code size"
 
     # Split stabilizers into X and Z parts
     n_stab, n_dat = code.stabilizers.shape
@@ -42,7 +42,7 @@ def recursive_mwpm(
 
     # Calculate error weights
     probabilities = jnp.array(errormodel.probability_distribution(error_probability))
-    deformed_probabilities = probabilities[errorpermutations].reshape((code.n_k_d[0], 4))
+    deformed_probabilities = probabilities[error_permutations].reshape((code.n_k_d[0], 4))
     wx = -jnp.log(deformed_probabilities[:,1])
     wy = -jnp.log(deformed_probabilities[:,2])
     wz = -jnp.log(deformed_probabilities[:,3])
@@ -101,7 +101,7 @@ def recursive_mwpm_batch(
     syndromes: jnp.ndarray, 
     errormodel: SimpleErrorModel,
     error_probability: float,
-    errorpermutations: jnp.ndarray = None,
+    error_permutations: jnp.ndarray = None,
     iteration_limit=10,
 ) -> jnp.ndarray:
     """
@@ -114,13 +114,13 @@ def recursive_mwpm_batch(
         code (RotatedPlanarCode): The quantum error-correcting code.
         errormodel (SimpleErrorModel): The error model to sample from.
         error_probability (float): The probability of an error occurring on a data qubit.
-        errorpermutations (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit (used to implement the effect of a Clifford deformations on the code without altering the stabilizers).
+        error_permutations (jnp.ndarray of shape (code.size, 4)): Optional permutation of the error probabilities for each qubit (used to implement the effect of a Clifford deformations on the code without altering the stabilizers).
         iteration_limit (int): The maximum number of iterations to perform.
 
     Returns:
         jnp.ndarray (shape (batch_size, 2*n_dat)): The proposed recoveries in binary symplectic form.
     """
-    decoder = lambda syndrome: recursive_mwpm(code, syndrome, errormodel, error_probability, errorpermutations, iteration_limit)
+    decoder = lambda syndrome: recursive_mwpm(code, syndrome, errormodel, error_probability, error_permutations, iteration_limit)
     recoveries = jnp.zeros((syndromes.shape[0], 2*code.n_k_d[0]), dtype=jnp.int32)
     for i, syndrome in enumerate(syndromes):
         recovery = decoder(syndrome)
