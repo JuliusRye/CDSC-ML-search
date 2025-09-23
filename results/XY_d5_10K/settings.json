@@ -1,0 +1,8 @@
+{
+    "<file_name>": "experiments/train_mCNN.py",
+    "<save_decoder_as>": "XY_d5_10K",
+    "<deformation_name>": "XY",
+    "<code_distance>": "5",
+    "<training_config>": "default",
+    "<training_batches>": "10_000"
+}
