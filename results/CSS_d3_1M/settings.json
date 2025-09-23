@@ -1,0 +1,8 @@
+{
+    "<file_name>": "experiments/train_mCNN.py",
+    "<save_decoder_as>": "CSS_d3",
+    "<deformation_name>": "CSS",
+    "<code_distance>": "3",
+    "<training_config>": "default",
+    "<training_batches>": "1_000_000"
+}
