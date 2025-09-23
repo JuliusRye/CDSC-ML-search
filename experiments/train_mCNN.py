@@ -14,7 +14,7 @@ from qecsim.models.rotatedplanar import RotatedPlanarCode
 from qecsim.models.generic import BiasedDepolarizingErrorModel
 # Local imports
 from src.neural_network import mCNNDecoder
-from src.data_management import save_params
+from src.data_management import save_params, deformation_from_name
 from src.data_gen import sample_error_batch, sample_deformation_batch, transform_code_stabilizers, syndrome_to_image_mapper, deformation_to_image_mapper, relevancy_tensor
 
 
@@ -40,7 +40,7 @@ settings = {
     "<training_batches>": sys.argv[5],
 }
 if len(sys.argv) == 7:
-    settings["<random_seed>"] = sys.argv[6]
+    settings["[random_seed]"] = sys.argv[6]
 
 # Create results directories if they don't exist
 save_dir = f"results/{NAME}"
@@ -92,24 +92,7 @@ learning_rate = optax.warmup_exponential_decay_schedule(
 code = RotatedPlanarCode(CODE_DISTANCE, CODE_DISTANCE)
 error_model = BiasedDepolarizingErrorModel(ERROR_BIAS, axis="Z")
 ERROR_PROBABILITIES = jnp.array(error_model.probability_distribution(error_probability))
-match deformation_name:
-    case "Generalized":
-        DEFORMATION = "Generalized"
-    case "Guided":
-        DEFORMATION = "Guided"
-    case "CSS":
-        DEFORMATION = jnp.zeros(CODE_DISTANCE**2, dtype=jnp.int32)
-    case "XZZX":
-        DEFORMATION = jnp.zeros(CODE_DISTANCE**2, dtype=jnp.int32).at[::2].set(3)
-    case "XY":
-        DEFORMATION = jnp.zeros(CODE_DISTANCE**2, dtype=jnp.int32).at[:].set(2)
-    case "C1":
-        DEFORMATION = jnp.zeros((CODE_DISTANCE, CODE_DISTANCE), dtype=jnp.int32).at[1::2, ::2].set(3).flatten().at[::2].set(2)
-    case _:
-        if all(char in "012345" for char in deformation_name) and len(deformation_name) == CODE_DISTANCE**2:
-            DEFORMATION = jnp.array([int(char) for char in deformation_name], dtype=jnp.int32)
-        else:
-            raise ValueError(f"Unknown deformation_name: {deformation_name}")
+DEFORMATION = deformation_from_name(code, deformation_name)
 if isinstance(DEFORMATION, str):
     print(f"Mode \"{DEFORMATION}\" selected.")
 else:

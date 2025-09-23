@@ -205,8 +205,8 @@ def data_batch(
     """
     error_permutation = error_permutations_from_deformation(deformation)
     deformed_errors = sample_error_batch(key, batch_size, code.size, error_probabilities, error_permutation)
-    error_syndromes = vmap(lambda s,e: (s @ e) % 2, in_axes=(0, 0))(code.stabilizers, deformed_errors)
-    error_logicals = vmap(lambda l,e: (l @ e) % 2, in_axes=(0, 0))(code.logicals, deformed_errors)
+    error_syndromes = vmap(lambda s,e: (s @ e) % 2, in_axes=(None, 0))(code.stabilizers, deformed_errors)
+    error_logicals = vmap(lambda l,e: (l @ e) % 2, in_axes=(None, 0))(code.logicals, deformed_errors)
     if as_images:
         syndrome_mapper = syndrome_to_image_mapper(code)
         error_syndromes = vmap(syndrome_mapper)(error_syndromes)

@@ -3,6 +3,7 @@ import json
 import jax.numpy as jnp
 from src.neural_network import mCNNDecoder, CNNDecoder
 from qecsim.models.generic import BiasedDepolarizingErrorModel
+from qecsim.models.rotatedplanar import RotatedPlanarCode
 
 
 def save_params(
@@ -31,7 +32,6 @@ def save_params(
             f"Handling of type {type(obj)} has not been implemented")
     with open(file_name, 'w') as file:
         json.dump(jsonify(params), file, indent=4)
-
 
 def load_params(
     file_name: str,
@@ -63,7 +63,6 @@ def load_params(
         data = json.load(file)
     return de_jsonify(data)
 
-
 def load_model(name: str):
     """
     Load a trained model from the results directory.
@@ -78,13 +77,16 @@ def load_model(name: str):
             - prefered_error_probabilities: The preferred error probabilities used during training.
     """
     path = f"results/{name}"
+    config_path = "experiments/training_configs"
     if not os.path.exists(path):
-        print(path)
-        raise ValueError("Model not found")
+        path = f"../results/{name}" # For use in Jupyter notebooks
+        config_path = "training_configs"
+    if not os.path.exists(path):
+        raise ValueError("Model not found", path)
 
     with open(f"{path}/settings.json", "r") as f:
         settings = json.load(f)
-    with open(f"experiments/training_configs/{settings['<training_config>']}.json") as f:
+    with open(f"{config_path}/{settings['<training_config>']}.json") as f:
         training_config = json.load(f)
     with open(f"{path}/nn_architecture.json", "r") as f:
         model_class, nn_architecture = json.load(f)
@@ -104,3 +106,23 @@ def load_model(name: str):
     ).probability_distribution(training_config["ERROR_PROBABILITY"]))
 
     return model, model_params, prefered_error_probabilities
+
+def deformation_from_name(code: RotatedPlanarCode, deformation_name: str):
+    match deformation_name:
+        case "Generalized":
+            return "Generalized"
+        case "Guided":
+            return "Guided"
+        case "CSS":
+            return jnp.zeros(code.size[0]*code.size[1], dtype=jnp.int32)
+        case "XZZX":
+            return jnp.zeros(code.size[0]*code.size[1], dtype=jnp.int32).at[::2].set(3)
+        case "XY":
+            return jnp.zeros(code.size[0]*code.size[1], dtype=jnp.int32).at[:].set(2)
+        case "C1":
+            return jnp.zeros((code.size[0], code.size[1]), dtype=jnp.int32).at[1::2, ::2].set(3).at[::2,::2].set(2).at[1::2,1::2].set(2).flatten()
+        case _:
+            if all(char in "012345" for char in deformation_name) and len(deformation_name) == code.size[0]*code.size[1]:
+                return jnp.array([int(char) for char in deformation_name], dtype=jnp.int32)
+            else:
+                raise ValueError(f"Unknown deformation_name: {deformation_name}")

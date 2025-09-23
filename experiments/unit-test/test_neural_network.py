@@ -1,6 +1,5 @@
 import sys, os
 
-import jax
 sys.path.append(os.path.abspath(
     os.getcwd()+"/experiments")
 )
