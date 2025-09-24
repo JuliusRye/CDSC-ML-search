@@ -41,14 +41,17 @@ def test_load_model():
     # Arrange
     model_name = "test"
     # Act
-    model, model_params, prefered_error_probabilities = load_model(model_name)
+    model, model_params, code, trained_using = load_model(model_name)
     # Assert
     assert isinstance(model, mCNNDecoder)
-    assert prefered_error_probabilities.sum() == 1.0
     assert tree_util.tree_all(
         tree_util.tree_map(lambda a: isinstance(a, jnp.ndarray), model_params)
     )
-
+    assert code.size == (3,3), "Code size is incorrect"
+    assert trained_using["error_probabilities"].sum() == 1.0, "Error probabilities do not sum to 1"
+    assert jnp.array_equal(
+		trained_using["deformation"], jnp.array([2,0,2,3,2,3,2,0,2])
+    )
 
 if __name__ == "__main__":
     test_save_and_load_params()

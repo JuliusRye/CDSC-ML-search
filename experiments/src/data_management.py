@@ -74,7 +74,8 @@ def load_model(name: str):
         tuple: A tuple containing:
             - model: The loaded model.
             - model_params: The parameters of the loaded model.
-            - prefered_error_probabilities: The preferred error probabilities used during training.
+            - code: The quantum error-correcting code.
+            - trained_using: A dictionary containing the error "error_probabilities" and "deformation" the model was trained with.
     """
     path = f"results/{name}"
     config_path = "experiments/training_configs"
@@ -99,13 +100,22 @@ def load_model(name: str):
             model = CNNDecoder(**nn_architecture)
         case _:
             raise ValueError(f"Unknown model class: {model_class}")
+    
+    L = int(settings["<code_distance>"])
+    code = RotatedPlanarCode(L, L)
 
-    prefered_error_probabilities = jnp.array(BiasedDepolarizingErrorModel(
+    trained_using = {}
+    trained_using["error_probabilities"] = jnp.array(BiasedDepolarizingErrorModel(
         bias=training_config["ERROR_BIAS"],
         axis="Z"
     ).probability_distribution(training_config["ERROR_PROBABILITY"]))
+    deformation = deformation_from_name(code, settings["<deformation_name>"])
+    if isinstance(deformation, jnp.ndarray):
+        trained_using["deformation"] = deformation
+    else:
+        trained_using["deformation"] = None
 
-    return model, model_params, prefered_error_probabilities
+    return model, model_params, code, trained_using
 
 def deformation_from_name(code: RotatedPlanarCode, deformation_name: str):
     match deformation_name:

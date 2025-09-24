@@ -2,6 +2,7 @@ from functools import partial
 from qecsim.models.rotatedplanar import RotatedPlanarCode
 import jax.numpy as jnp
 from jax import random, vmap, jit
+from icecream import ic
 
 # Static variables
 relevancy_tensor = jnp.array([
