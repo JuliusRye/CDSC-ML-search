@@ -1,4 +1,7 @@
+flax==0.12.0
 icecream==2.1.7
+ipykernel==6.30.1
+ipython==9.5.0
 jax==0.7.1
 matplotlib==3.10.6
 numpy==2.3.2
@@ -8,6 +11,9 @@ PyMatching==2.3.0
 pytest==8.4.2
 qecsim==1.0b9
 qiskit==2.1.2
+qiskit-aer==0.17.2
 scipy==1.16.1
 stim==1.15.0
 sympy==1.14.0
+torch==2.8.0
+tqdm==4.67.1

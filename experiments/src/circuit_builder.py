@@ -4,6 +4,8 @@ from qiskit.circuit import QuantumCircuit, AncillaRegister, QuantumRegister, Cla
 from qiskit_aer.library.save_instructions import SaveExpectationValue
 from qiskit.quantum_info import Pauli
 from qiskit.circuit.library import IGate
+import numpy as np
+import stim
 from src.data_gen import transform_code_stabilizers
 
 # Define idle gates to represent wait times (with idling errors) for 1-qubit and 2-qubit operations
@@ -214,4 +216,169 @@ def build_qiskit_circuit(code: RotatedPlanarCode, deformation: jnp.ndarray, roun
         "logical_Z": logical_z,
         "logical_Y": 1j*logical_x & logical_z,
         "observable": observable
+    }
+
+def build_stim_circuit(code: RotatedPlanarCode, deformation: jnp.ndarray, rounds: int, basis: str = '+Z', return_metadata: bool = False) -> stim.Circuit | tuple[stim.Circuit, dict]:
+    """
+    Builds a Stim quantum circuit for the given code
+
+    Args:
+        code (RotatedPlanarCode): The quantum error correcting code
+        deformation (jnp.ndarray): The deformation applied to the code (An array of shape (num_data_qubits,) with entries in {0,1,2,3,4,5} representing the index of the Clifford deformation on each data qubit)
+        rounds (int): The number of QEC rounds to perform
+        basis (str, optional): The basis in which to measure the logical qubit. Defaults to '+Z'.
+        return_metadata (bool, optional): Whether to return metadata about the circuit. Defaults to False.
+    
+    Returns:
+        stim.Circuit: The constructed Stim quantum circuit
+    """
+    stabilizers, logicals, syndrome_loc, data_loc, connection_order = prepare_circuit_info(code, deformation)
+
+    all_qubits = np.arange(len(syndrome_loc) + len(data_loc))
+    data = all_qubits[:len(data_loc)]
+    stab = all_qubits[len(data_loc):]
+
+    def create_qec_round():
+        qec_round = stim.Circuit()
+        stab_order = [
+            stim.Circuit(),  # SW
+            stim.Circuit(),  # SE
+            stim.Circuit(),  # NW
+            stim.Circuit(),  # NE
+        ]
+
+        for i, connections in enumerate(connection_order):
+            for s, d in connections:
+                x, z = stabilizers[s, d], stabilizers[s, d + len(data_loc)]
+                match (x, z):
+                    case (1, 0):  # X
+                        stab_order[i].append_operation("CX", [stab[s], data[d]])
+                    case (0, 1):  # Z
+                        stab_order[i].append_operation("CZ", [stab[s], data[d]])
+                    case (1, 1):  # Y
+                        stab_order[i].append_operation("CY", [stab[s], data[d]])
+                    case _:
+                        raise ValueError(f"Unexpected stabilizer entry {(x, z)}")
+
+        qec_round.append("R", stab)
+        qec_round.append("TICK", tag="1q")
+        qec_round.append("H", stab)
+        qec_round.append("TICK", tag="2q")
+        qec_round.append(stab_order[0])
+        qec_round.append("TICK", tag="2q")
+        qec_round.append(stab_order[1])
+        qec_round.append("TICK", tag="2q")
+        qec_round.append(stab_order[2])
+        qec_round.append("TICK", tag="2q")
+        qec_round.append(stab_order[3])
+        qec_round.append("TICK", tag="1q")
+        qec_round.append("H", stab)
+        qec_round.append("TICK", tag="meas")
+        qec_round.append("M", stab)
+        qec_round.append("TICK", tag="reset")
+
+        return qec_round
+
+    def create_init_state():
+        init_circ = stim.Circuit()
+
+        # Prepare initial state
+        init_circ.append("R", data)
+
+        init_circ.append("TICK", tag="1q")
+        match basis.upper():
+            case '+Z':  # |0>
+                pass
+            case '-Z':  # |1>
+                init_circ.append("X", data)
+            case '+X':  # |+>
+                init_circ.append("H", data)
+            case '-X':  # |->
+                init_circ.append("X", data)
+                init_circ.append("H", data)
+            case _:
+                raise ValueError(f"Unexpected basis {basis}")
+
+        init_circ.append("TICK", tag="1q")
+        for i, defo in enumerate(deformation):
+            match defo:
+                case 0:  # I
+                    pass
+                case 1:  # X-Y
+                    init_circ.append("H_XY", data[i])
+                case 2:  # Y-Z
+                    init_circ.append("H_YZ", data[i])
+                case 3:  # X-Z
+                    init_circ.append("H_XZ", data[i])
+                case 4:  # X-Z-Y
+                    init_circ.append("C_ZYX", data[i])
+                case 5:  # X-Y-Z
+                    init_circ.append("C_XYZ", data[i])
+                case _:
+                    raise ValueError(f"Unexpected deformation index {defo}")
+
+        return init_circ
+
+    def measure_observable():
+        observable_circ = stim.Circuit()
+        
+        obs = logicals[0] if basis.upper()[1] == 'X' else logicals[1]
+        actives = 0
+        observable_circ.append("TICK", tag="meas")
+        for i, elm in enumerate(obs.reshape(2,-1).T):
+            match elm.tolist():
+                case [1, 0]:  # X
+                    actives += 1
+                    observable_circ.append("MX", data[i])
+                case [0, 1]:  # Z
+                    actives += 1
+                    observable_circ.append("MZ", data[i])
+                case [1, 1]:  # Y
+                    actives += 1
+                    observable_circ.append("MY", data[i])
+                case [0, 0]:  # I
+                    pass
+                case _:
+                    raise ValueError(f"Unexpected logical entry {tuple(elm)}")
+        observable_circ.append("OBSERVABLE_INCLUDE", [stim.target_rec(-(1+i)) for i in range(actives)], 0)
+
+        return observable_circ
+
+    layout = stim.Circuit()
+    for i, cord in enumerate(syndrome_loc):
+        layout.append_operation("QUBIT_COORDS", [stab[i]], cord)
+    for i, cord in enumerate(data_loc):
+        layout.append_operation("QUBIT_COORDS", [data[i]], cord)
+
+    init_circ = create_init_state()
+    qec_round = create_qec_round()
+    obs_circ = measure_observable()
+
+    round_1_detectors = stim.Circuit()
+    for i in range(len(stab)):
+        if (i < (len(stab) // 2) and basis.upper()[1] == 'X') or (i >= (len(stab) // 2) and basis.upper()[1] == 'Z'):
+            round_1_detectors.append("DETECTOR", [stim.target_rec(-1 - i)])
+    
+    round_detectors = stim.Circuit()
+    for i in range(len(stab)):
+        round_detectors.append("DETECTOR", [stim.target_rec(-1 - i), stim.target_rec(-1 - i - len(stab))])
+
+    final_circuit = layout + init_circ + (qec_round + round_1_detectors) + (qec_round + round_detectors) * (rounds-1) + obs_circ
+
+    if not return_metadata:
+        return final_circuit
+
+    pauli_x_string = np.array(["IXZY"[lx+2*lz] for lx, lz in zip(*logicals[0].reshape(2,-1))]).reshape(code.size).T
+    pauli_z_string = np.array(["IXZY"[lx+2*lz] for lx, lz in zip(*logicals[1].reshape(2,-1))]).reshape(code.size).T
+    pauli_y_string = np.array(["IXZY"[lx+2*lz] for lx, lz in zip(*(logicals.sum(axis=0) % 2).reshape(2,-1))]).reshape(code.size).T
+    return final_circuit, {
+        "stabilizers": stabilizers,
+        "logicals": logicals,
+        "syndrome_loc": syndrome_loc,
+        "data_loc": data_loc,
+        "connection_order": connection_order,
+        "logical_X": pauli_x_string,
+        "logical_Z": pauli_z_string,
+        "logical_Y": pauli_y_string,
+        "observable": pauli_x_string if basis.upper()[1] == 'X' else pauli_z_string
     }
